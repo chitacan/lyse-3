@@ -1,0 +1,385 @@
+import { CodeSurfer } from "mdx-deck-code-surfer"
+import { Image, Head } from 'mdx-deck'
+import { default as base } from 'mdx-deck/themes'
+import Mermaid from './components/mermaid'
+import prismStyle from 'react-syntax-highlighter/styles/prism/ghcolors'
+import erlang from 'react-syntax-highlighter/languages/prism/erlang'
+
+<Head>
+  <title>erlang 스터디 3차 발표</title>
+
+  <meta property="og:type" content="website"/>
+  <meta property="og:url" content="https://lyse-3.chitacan.io"/>
+  <meta property="og:image" content="https://learnyousomeerlang.com/static/img/splash-book.png"/>
+  <meta property="og:image:type" content="image/png"/>
+  <meta property="og:title" content="erlang"/>
+  <meta property="og:description" content="erlang 스터디 3번째 발표"/>
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:domain" content="lyse-3.chitacan.io" />
+  <meta name="twitter:title" content="erlang" />
+  <meta name="twitter:description" content="erlang 스터디 3번째 발표" />
+  <meta name="twitter:url" content="https://lyse-3.chitacan.io" />
+  <meta name="twitter:image" content="https://learnyousomeerlang.com/static/img/splash-book.png" />
+</Head>
+
+export const theme = {
+  ...base,
+  css: {
+    ...base.css,
+    'li > ul, li > ol': {
+      fontSize: '1em'
+    },
+    'li > p': {
+      fontSize: '1em',
+      margin: 0,
+    },
+    li: {
+      margin: '8px 0'
+    }
+  },
+  prism: {
+    style: {...prismStyle},
+    languages: {
+      erlang
+    }
+  }
+}
+
+# erlang
+
+<a href="https://chitacan.io" target="_blank">@chitacan</a>
+
+---
+
+* [chapter 15. Rage Against The Finite-State Machines](https://learnyousomeerlang.com/finite-state-machines)
+* [chapter 16. Event Handlers](https://learnyousomeerlang.com/event-handlers)
+* [chapter 17. Who Supervises The Supervisors?](https://learnyousomeerlang.com/supervisors)
+* [chapter 18. Building an Application With OTP](https://learnyousomeerlang.com/building-applications-with-otp)
+* [chapter 19. Building OTP Applications](https://learnyousomeerlang.com/building-otp-applications)
+
+---
+
+## ch 15. Rage Against The Finite-State Machines
+
+---
+
+# Finite-State Machines??
+
+* 한번에 하나의 상태만을 가짐
+* `event` 를 통해 상태를 전환
+* `gen_fsm` (deprecated) 또는 `get_statem`
+
+---
+
+# 읽은 소감?
+
+* 저자가 (갑자기) 설명충이 된 느낌?? (너무 복잡한 예제...)
+* 읽기 전에는 "오 상태머신이 있다고?"
+* 읽은 후에는 "아직도 이해가 안되네 😕"
+* `gen_fsm`이 [deprecated](http://erlang.org/doc/man/gen_fsm.html) 되어 동기부여마저 떨어짐
+* 하지만, 2개의 fsm 이 통신하는 부분은 아주 흥미로움
+
+---
+
+# `gen_statem`
+
+* `gen_statem` provides a generic state machine behaviour and replaces its predecessor `gen_fsm` since Erlang/OTP 20.0.
+* 2가지 `callback mode` 지원
+* Event postponing, State time-out ...
+* 미래가 있어보이는 `gen_statem` 으로 진행함
+
+---
+
+# `pushbutton` module
+
+* `trade_fsm` 이 너무 어려워서
+* `gen_statem` 에 나와있는 `pushbutton` 예제를 사용하기로...
+* 2가지 상태만 있는 아주 간단한 state machine
+
+<Mermaid id="pushbutton_1" content={`
+  graph LR
+    A((off)) -- push --> B((on))
+    B -- push / Data + 1 --> A
+  `} />
+
+---
+
+<CodeSurfer
+  title="run pushbutton"
+  lang="erlang"
+  code={`$ erl
+1> c(pushbutton).
+{ok,pushbutton}
+2> pushbutton:start().
+{ok,<0.87.0>}
+3> pushbutton:push().
+on
+4> pushbutton:push().
+off
+5> pushbutton:push().
+on
+6> pushbutton:push().
+off
+7> pushbutton:get_count().
+2`}
+/>
+
+---
+
+<CodeSurfer
+  title="pushbutton.erl"
+  code={require("!raw-loader!./snippets/pushbutton.erl")}
+  steps={[
+    {notes: ""},
+    {lines: [1,2]},
+    {range: [8,17], notes: () => (<p><code>call/3</code>, <code>cast/2</code>를 호출할 수 있음</p>)},
+    {range: [23,25]},
+    {range: [28,29], notes: () => (<p><code>off</code> 상태에서 <code>gen_statem:call(pushbutton, push)</code>를 호출하면 여기서 처리됩니다.</p>)},
+    {range: [33,34], notes: () => (<p><code>on</code> 상태에서 <code>gen_statem:call(pushbutton, push)</code>를 호출하면 여기서 처리됩니다.</p>)},
+    {lines: [30,31,35,36,38,39], notes: () => (<p><code>gen_statem:call(pushbutton, get_count)</code>를 호출하면 여기서 처리됩니다.</p>)}
+  ]}
+/>
+
+---
+
+## ch 16. Event Handlers
+
+---
+
+# `gen_event`
+
+<img src={require("file-loader!./images/gen_event.jpg")}/>
+
+* 이벤트를 subscriber (함수) 로 포워딩 해주는 프로세스
+* 이벤트가 처리되는 handler 함수를 여러 모듈에 나누어 구현하고, 동적으로 추가 / 삭제가 가능함
+* `event manager` 와 `handler` 는 같은 프로세스에서 실행됨
+
+---
+
+<CodeSurfer
+  title="run curling_scoreboard"
+  lang="erlang"
+  code={`$ erl
+1> c(curling_scoreboard_hw), c(curling_scoreboard).
+{ok,curling_scoreboard}
+2> {ok, Pid} = gen_event:start_link().
+{ok,<0.91.0>}
+3> gen_event:add_handler(Pid, curling_scoreboard, []).
+ok
+4> gen_event:notify(Pid, {set_teams, "a", "b"}).
+handle_event on <0.91.0>
+ok
+Scoreboard: Team a vs. Team b
+5> gen_event:delete_handler(Pid, curling_scoreboard, off).
+ok
+6> gen_event:notify(Pid, {set_teams, "a", "b"}).
+ok`}
+  steps={[
+    {},
+    {lines: [4]},
+    {lines: [6,8]},
+    {lines: [5,9], notes: "handler 는 같은 프로세스에서 실행됨"},
+    {lines: [12], notes: "handler 는 동적으로 추가 / 삭제가 가능함"},
+    {lines: [14,15], notes: "handler 가 없는 이벤트를 전송하면 ok 반환"}
+  ]}
+/>
+
+---
+
+## `gen_event:add_sup_handler/3`
+
+* `caller` 프로세스가 크래시되면, 등록된 `handler` 를 자동으로 삭제처리
+* `handler` 가 삭제되면, `caller` 프로세스에 자동으로 메시지 전달
+
+---
+
+# 읽은 소감?
+
+* `gen_event` 는 `gen_server` 의 이벤트 처리 특화버전?
+* `handler` 가 같은 프로세스에서 처리되기 때문에 blocking 에 유의해야 함
+
+---
+
+## ch 17. Who Supervises the Supervisors?
+
+---
+
+# `supervisor`
+
+* `callback` 은 `init/1` 뿐이지만, 가장 복잡한 옵션을 가지고 있는 behaviour 🧙‍♂️
+* erlang 프로세스를 감시할 수 있음
+* supervision tree 를 순서에 맞게 종료시켜 줌
+
+<img src={require("file-loader!./images/shutdown.jpg")}/>
+
+---
+
+## `init/1` callback
+
+`{ok, {{RestartStrategy, MaxRestart, MaxTime}, [ChildSpec]}}`
+
+* RestartStrategy
+  * <code><small>one_for_one, one_for_all, rest_for_one, simple_one_for_one</small></code>
+* MaxTime 내에 MaxRestart 되면, supervisor 스스로 종료
+* ChildSpec
+  * <code><small>[&#123;id, MFA, restart, shutdown, type, modules&#125;, ...]</small></code>
+
+---
+
+# 읽은 소감?
+
+* erlang 의 `supervisor` 는 실행 이후 child process 를 추가 / 삭제 가능
+  * elixir 에서는 `Supervisor` 와 `DynamicSupervisor` 를 구분함
+* 프로세스를 관찰하고자 한다면, `supervisor` 로...
+
+```erlang
+1> band_supervisor:start_link(lenient).
+{ok,0.709.0>}
+2> supervisor:which_children(band_supervisor).
+[{keytar,<0.713.0>,worker,[musicians]},
+ {drum,<0.715.0>,worker,[musicians]},
+ {bass,<0.711.0>,worker,[musicians]},
+ {singer,<0.710.0>,worker,[musicians]}]
+```
+
+---
+
+## ch 18. Building an Application With OTP
+
+---
+
+# `ppool`
+
+* 태스크를 실행할 수 있는 process pool 과 queue 를 가진 OTP 앱
+* `gen_server`, `supervisor` 를 활용해서 뭔가 쓸모있는 것을 만들기 시작함
+* OTP 앱에 반드시 존재하는 supervision tree 를 모델링 하는 방식을 잠깐 소개 (Onion Layer Theory??)
+
+---
+
+## Onion Layer Theory??
+
+앱에 필요한 state 를 타입별로 나눠보면, supervision tree 를 구성하는데 도움을 받을 수 있다.
+
+---
+
+* `static state` ➡️ supervisor
+* `dynamic state (can recompute)` ➡️ other process, db, env
+* `dynamic state (cannot recompute)` ➡️ other process (gen_server??)
+
+---
+
+## `ppool`'s supervision tree
+
+<img src={require("file-loader!./images/ppool.jpg")}/>
+
+---
+
+## ch 19. Building OTP Applications
+
+---
+
+<CodeSurfer
+  title="directory structure"
+  lang="plain"
+  code={`
+├── Emakefile
+├── ebin
+│   └── ppool.app
+├── priv
+├── src
+│   └── *.erl
+└── test
+    └── *_tests.erl
+`}
+  steps={[
+    {},
+    {lines: [2, 4]}
+  ]}/>
+
+---
+
+## Emakefile
+
+```erlang
+{"src/*", [debug_info, {i,"include/"}, {outdir, "ebin/"}]}.
+{"test/*", [debug_info, {i,"include/"}, {outdir, "ebin/"}]}.
+```
+
+---
+
+## Application Resource File
+
+```erlang
+{application, ppool,
+  [{vsn, "1.0.0"},
+  {modules, [
+    ppool,
+    ppool_serv,
+    ppool_sup,
+    ppool_supersup,
+    ppool_worker_sup
+  ]},
+  {registered, [ppool]},
+  {mod, {ppool, []}}
+]}.
+```
+
+---
+
+<CodeSurfer
+  title="Application Behaviour"
+  lang="erlang"
+  code={require("!raw-loader!./snippets/ppool.erl")}
+  steps={[
+    {},
+    {lines: [6,7,9,10]}
+  ]}/>
+
+---
+
+## Application Controller
+
+<img src={require("file-loader!./images/application_controller.jpg")}/>
+
+* erlang vm 과 함께 시작
+* 각 OTP 앱을 관리하는 application master 를 시작
+  * `ppool` 앱도 application master 에서 시작됨
+* 우리 앱을 observer 앱에서 관찰할 수 있음 🎉
+
+---
+
+<CodeSurfer
+  title="run ppool app"
+  lang="erlang"
+  code={`$ erl -make
+$ erl -pa ebin/
+1> application:start(ppool).
+ok
+2> ppool:start_pool(nag, 2, {ppool_naggar, start_link, []}).
+{ok,<0.92.0>}
+3> observer:start().
+ok
+`}
+  steps={[
+    {},
+    {lines: [1], notes: "Emakefile 로 빌드"},
+    {lines: [2], notes: "ebin/ 의 모듈들을 로드"},
+    {lines: [3,5,7]}
+  ]}
+/>
+
+---
+
+<img src={require("file-loader!./images/observer.png")}/>
+
+---
+
+# 읽은 소감?
+
+* 이전의 데모들도 application behaviour 를 구현하고, observer 에서 확인해보고 싶어졌음
+* supervision tree 를 쉽게 확인할 수 있는 것은 좋은데, observer 에 표시되는 process 와 module 코드가 잘 연결될 수 있었으면 좋겠음
+
+---
+
+# 끝
